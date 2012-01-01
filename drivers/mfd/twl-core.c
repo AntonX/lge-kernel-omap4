@@ -680,7 +680,8 @@ add_regulator(int num, struct regulator_init_data *pdata,
  */
 
 static int
-add_children(struct twl4030_platform_data *pdata, unsigned long features)
+add_children(struct twl4030_platform_data *pdata, unsigned long features,
+		unsigned long errata)
 {
 	struct device	*child;
 	unsigned sub_chip_id;
@@ -704,6 +705,7 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 	}
 	if (twl_has_bci() && pdata->bci) {
 		pdata->bci->features = features;
+		pdata->bci->errata = errata;
 		child = add_child(1, "twl6030_bci",
 				pdata->bci, sizeof(*pdata->bci),
 				false,
@@ -1341,6 +1343,8 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct twl4030_platform_data	*pdata = client->dev.platform_data;
 	u8 temp;
 	int ret = 0, features;
+	unsigned long errata = 0;
+	u8 twlrev;
 
 	if (!pdata) {
 		dev_dbg(&client->dev, "no platform data?\n");
@@ -1406,6 +1410,25 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		twl_i2c_read_u8(TWL_MODULE_USB, &temp, USB_PRODUCT_ID_LSB);
 		if (temp == 0x32)
 			features |= TWL6032_SUBCLASS;
+
+		twl_i2c_read_u8(TWL6030_MODULE_ID2, &twlrev,
+				TWL6030_REG_JTAGVERNUM);
+
+		/*
+		 * Check for the errata implementation
+		 * Errata ProDB00119490 present only in the TWL6032 ES1.1
+		 * Errata ProDB00112620 present only in the TWL6030 ES2.1
+		 * Errata ProDB00110684 present only in the TWL6030 ES2.1
+		 */
+		if (features & TWL6032_SUBCLASS) {
+			if (twlrev == 1)
+				errata |= TWL6032_ERRATA_DB00119490;
+		} else {
+			if (twlrev == 2) {
+				errata |= TWL6030_ERRATA_DB00112620;
+				errata |= TWL6030_ERRATA_DB00110684;
+			}
+		}
 	}
 
 	/* load power event scripts */
@@ -1452,7 +1475,7 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		twl_i2c_write_u8(TWL4030_MODULE_INTBR, temp, REG_GPPUPDCTR1);
 	}
 
-	status = add_children(pdata, features);
+	status = add_children(pdata, features, errata);
 
 	/* LGE_SJIT 2012-02-06 [dojip.kim@lge.com]
 	 * fix memory leaks

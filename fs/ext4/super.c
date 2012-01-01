@@ -1775,6 +1775,7 @@ set_qf_format:
 			break;
 		case Opt_nodelalloc:
 			clear_opt(sb, DELALLOC);
+			clear_opt2(sb, EXPLICIT_DELALLOC);
 			break;
 		case Opt_mblk_io_submit:
 			set_opt(sb, MBLK_IO_SUBMIT);
@@ -1791,6 +1792,7 @@ set_qf_format:
 			break;
 		case Opt_delalloc:
 			set_opt(sb, DELALLOC);
+			set_opt2(sb, EXPLICIT_DELALLOC);
 			break;
 		case Opt_block_validity:
 			set_opt(sb, BLOCK_VALIDITY);
@@ -3195,6 +3197,33 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 			   &journal_ioprio, NULL, 0))
 		goto failed_mount;
 
+	if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA) {
+		printk_once(KERN_WARNING "EXT4-fs: Warning: mounting "
+			    "with data=journal disables delayed "
+			    "allocation and O_DIRECT support!\n");
+		if (test_opt2(sb, EXPLICIT_DELALLOC)) {
+			ext4_msg(sb, KERN_ERR, "can't mount with "
+				 "both data=journal and delalloc");
+			goto failed_mount;
+		}
+		if (test_opt(sb, DIOREAD_NOLOCK)) {
+			ext4_msg(sb, KERN_ERR, "can't mount with "
+				 "both data=journal and dioread_nolock");
+			goto failed_mount;
+		}
+		if (test_opt(sb, DELALLOC))
+			clear_opt(sb, DELALLOC);
+	}
+
+	blocksize = BLOCK_SIZE << le32_to_cpu(es->s_log_block_size);
+	if (test_opt(sb, DIOREAD_NOLOCK)) {
+		if (blocksize < PAGE_SIZE) {
+			ext4_msg(sb, KERN_ERR, "can't mount with "
+				 "dioread_nolock if block size != PAGE_SIZE");
+			goto failed_mount;
+		}
+	}
+
 	sb->s_flags = (sb->s_flags & ~MS_POSIXACL) |
 		(test_opt(sb, POSIX_ACL) ? MS_POSIXACL : 0);
 
@@ -3235,8 +3264,6 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	 */
 	if (!ext4_feature_set_ok(sb, (sb->s_flags & MS_RDONLY)))
 		goto failed_mount;
-
-	blocksize = BLOCK_SIZE << le32_to_cpu(es->s_log_block_size);
 
 	if (blocksize < EXT4_MIN_BLOCK_SIZE ||
 	    blocksize > EXT4_MAX_BLOCK_SIZE) {
@@ -3327,17 +3354,22 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	for (i = 0; i < 4; i++)
 		sbi->s_hash_seed[i] = le32_to_cpu(es->s_hash_seed[i]);
 	sbi->s_def_hash_version = es->s_def_hash_version;
-	i = le32_to_cpu(es->s_flags);
-	if (i & EXT2_FLAGS_UNSIGNED_HASH)
-		sbi->s_hash_unsigned = 3;
-	else if ((i & EXT2_FLAGS_SIGNED_HASH) == 0) {
+	if (EXT4_HAS_COMPAT_FEATURE(sb, EXT4_FEATURE_COMPAT_DIR_INDEX)) {
+		i = le32_to_cpu(es->s_flags);
+		if (i & EXT2_FLAGS_UNSIGNED_HASH)
+			sbi->s_hash_unsigned = 3;
+		else if ((i & EXT2_FLAGS_SIGNED_HASH) == 0) {
 #ifdef __CHAR_UNSIGNED__
-		es->s_flags |= cpu_to_le32(EXT2_FLAGS_UNSIGNED_HASH);
-		sbi->s_hash_unsigned = 3;
+			if (!(sb->s_flags & MS_RDONLY))
+				es->s_flags |=
+					cpu_to_le32(EXT2_FLAGS_UNSIGNED_HASH);
+			sbi->s_hash_unsigned = 3;
 #else
-		es->s_flags |= cpu_to_le32(EXT2_FLAGS_SIGNED_HASH);
+			if (!(sb->s_flags & MS_RDONLY))
+				es->s_flags |=
+					cpu_to_le32(EXT2_FLAGS_SIGNED_HASH);
 #endif
-		sb->s_dirt = 1;
+		}
 	}
 
 	if (sbi->s_blocks_per_group > blocksize * 8) {
@@ -3648,25 +3680,6 @@ no_journal:
 						       EXT4_GOOD_OLD_INODE_SIZE;
 		ext4_msg(sb, KERN_INFO, "required extra inode space not"
 			 "available");
-	}
-
-	if (test_opt(sb, DELALLOC) &&
-	    (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA)) {
-		ext4_msg(sb, KERN_WARNING, "Ignoring delalloc option - "
-			 "requested data journaling mode");
-		clear_opt(sb, DELALLOC);
-	}
-	if (test_opt(sb, DIOREAD_NOLOCK)) {
-		if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA) {
-			ext4_msg(sb, KERN_WARNING, "Ignoring dioread_nolock "
-				"option - requested data journaling mode");
-			clear_opt(sb, DIOREAD_NOLOCK);
-		}
-		if (sb->s_blocksize < PAGE_SIZE) {
-			ext4_msg(sb, KERN_WARNING, "Ignoring dioread_nolock "
-				"option - block size is too small");
-			clear_opt(sb, DIOREAD_NOLOCK);
-		}
 	}
 
 	err = ext4_setup_system_zone(sb);
@@ -4324,6 +4337,21 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 			   &n_blocks_count, 1)) {
 		err = -EINVAL;
 		goto restore_opts;
+	}
+
+	if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA) {
+		if (test_opt2(sb, EXPLICIT_DELALLOC)) {
+			ext4_msg(sb, KERN_ERR, "can't mount with "
+				 "both data=journal and delalloc");
+			err = -EINVAL;
+			goto restore_opts;
+		}
+		if (test_opt(sb, DIOREAD_NOLOCK)) {
+			ext4_msg(sb, KERN_ERR, "can't mount with "
+				 "both data=journal and dioread_nolock");
+			err = -EINVAL;
+			goto restore_opts;
+		}
 	}
 
 	if (sbi->s_mount_flags & EXT4_MF_FS_ABORTED)

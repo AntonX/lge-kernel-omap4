@@ -667,16 +667,17 @@ struct twl4030_bci_platform_data {
 	unsigned int max_charger_currentmA;
 	unsigned int max_charger_voltagemV;
 	unsigned int termination_currentmA;
+	unsigned int max_battery_capacity;
 
 	unsigned int max_bat_voltagemV;
 	unsigned int low_bat_voltagemV;
 
-	/* twl6032 */
-	unsigned int use_hw_charger;
-	unsigned int use_power_path;
-	unsigned long features;
-	unsigned int use_eeprom_config;
+	unsigned int sense_resistor_mohm;
 
+	/* twl6032 */
+	unsigned long features;
+
+	unsigned long errata;
 	/* LGE_SJIT 2012-01-25 [dojip.kim@lge.com]
 	 * LGE specific platform data
 	 */
@@ -1048,6 +1049,10 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 #define TWL6030_REG_REGEN2	81
 #endif
 #define TWL6032_PREQ1_RES_ASS_A	0xd7
+
+#define TWL6032_ERRATA_DB00119490	(1 << 0)
+#define TWL6030_ERRATA_DB00112620	(1 << 1)
+#define TWL6030_ERRATA_DB00110684	(1 << 2)
 
 #if defined(CONFIG_MACH_LGE)
 

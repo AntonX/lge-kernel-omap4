@@ -46,7 +46,7 @@ static struct workqueue_struct *workqueue;
  * performance cost, and for other reasons may not always be desired.
  * So we allow it it to be disabled.
  */
-int use_spi_crc = 1;
+int use_spi_crc = 0;
 module_param(use_spi_crc, bool, 0);
 
 /*
@@ -327,9 +327,9 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			 * application note, it is recommended to
 			 * use fixed timeout not less than 500 ms
 			 */
-			limit_us = 500000;
+			limit_us = 1000000;
 		else
-			limit_us = 100000;
+			limit_us = 500000;
 
 		/*
 		 * SDHC cards always use these fixed values.
