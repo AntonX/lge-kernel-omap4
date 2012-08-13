@@ -56,7 +56,7 @@ enum gcerror cmdbuf_init(void)
 	GCPRINT(GCDBGFILTER, GCZONE_INIT, "++" GC_MOD_PREFIX
 		"\n", __func__, __LINE__);
 
-	gcerror = gc_alloc_pages(&cmdbuf.page, GC_CMD_BUF_SIZE);
+	gcerror = gc_alloc_noncached(&cmdbuf.page, GC_CMD_BUF_SIZE);
 	if (gcerror != GCERR_NONE)
 		return GCERR_SETGRP(gcerror, GCERR_CMD_ALLOC);
 
@@ -100,11 +100,11 @@ void cmdbuf_physical(bool forcephysical)
 		"\n", __func__, __LINE__);
 }
 
-enum gcerror cmdbuf_map(struct mmu2dcontext *ctxt)
+enum gcerror cmdbuf_map(struct gcmmucontext *ctxt)
 {
 	enum gcerror gcerror;
-	struct mmu2dphysmem mem;
-	struct mmu2darena *mapped;
+	struct gcmmuphysmem mem;
+	struct gcmmuarena *mapped;
 	pte_t physpages[GC_CMD_BUF_PAGES];
 	unsigned char *physical;
 	int i;
@@ -129,7 +129,7 @@ enum gcerror cmdbuf_map(struct mmu2dcontext *ctxt)
 	mem.pages = physpages;
 	mem.pagesize = PAGE_SIZE;
 
-	gcerror = mmu2d_map(ctxt, &mem, &mapped);
+	gcerror = gcmmu_map(ctxt, &mem, &mapped);
 	if (gcerror != 0)
 		return gcerror;
 
@@ -261,8 +261,6 @@ int cmdbuf_flush(void *logical)
 		/* Dump command buffer. */
 		GCDUMPBUFFER(GCDBGFILTER, GCZONE_BUFFER,
 				cmdbuf.page.logical, base, cmdbuf.data_size);
-
-		gc_flush_pages(&cmdbuf.page);
 
 		/* Enable all events. */
 		gc_write_reg(GCREG_INTR_ENBL_Address, ~0U);

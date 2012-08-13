@@ -337,13 +337,6 @@ struct semaphore dhd_chipup_sem;
 #endif
 /* LGE_UPDATE_E, moon-wifi@lge.com by 2lee, 20120601 */
 
-// Control wifi power mode during sleep sys/module/bcmdhd/wifi_pm
-// Set to 0 (default) to force PM_MAX, set to 1 to force PM_FAST
-#if defined(CONFIG_HAS_EARLYSUSPEND) && !defined(SUPPORT_PM2_ONLY)
-uint wifi_pm = 0;
-module_param(wifi_pm, uint, 0644);
-#endif
-
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 
@@ -652,10 +645,7 @@ static void dhd_set_packet_filter(int value, dhd_pub_t *dhd)
 #if defined(CONFIG_HAS_EARLYSUSPEND)
 static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
-
-#ifndef SUPPORT_PM2_ONLY
-	int power_mode = (wifi_pm == 1) ? PM_FAST : PM_MAX;	
-#endif
+	int power_mode = PM_MAX;	
 	/* wl_pkt_filter_enable_t	enable_parm; */
 	char iovbuf[32];
 	int bcn_li_dtim = 3;
@@ -670,11 +660,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				/* Kernel suspended */
 				DHD_ERROR(("%s: force extra Suspend setting \n", __FUNCTION__));
 				
-#ifndef SUPPORT_PM2_ONLY
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
 
-#endif
 				/* Enable packet filter, only allow unicast packet to send up */
 				dhd_set_packet_filter(1, dhd);
 
@@ -696,11 +684,10 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				/* Kernel resumed  */
 				DHD_TRACE(("%s: Remove extra suspend setting \n", __FUNCTION__));
 				
-#ifndef SUPPORT_PM2_ONLY
 				power_mode = PM_FAST;
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
-#endif
+
 				/* disable pkt filter */
 				dhd_set_packet_filter(0, dhd);
 
@@ -3472,9 +3459,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	char eventmask[WL_EVENTING_MASK_LEN];
 	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
 
-#ifndef SUPPORT_PM2_ONLY
 	uint power_mode = PM_FAST;
-#endif	
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = 0;
 	uint bcn_timeout = 8;  // for CCX
@@ -3636,9 +3621,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s assoc_listen failed %d\n", __FUNCTION__, ret));
 
 	/* Set PowerSave mode */
-#ifndef SUPPORT_PM2_ONLY
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode, sizeof(power_mode), TRUE, 0);
-#endif
 
 	/* Match Host and Dongle rx alignment */
 	bcm_mkiovar("bus:txglomalign", (char *)&dongle_align, 4, iovbuf, sizeof(iovbuf));

@@ -189,9 +189,6 @@ static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 		return -ENOMEM;
 
 	sprintf(clk_name, "auxclk%d_ck", obj->id);
-// [LGE_UPDATE_S] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
-    printk("<<< auxclk%d_ck\n", obj->id);
-// [LGE_UPDATE_E] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
 	acd->aux_clk = clk_get(NULL, clk_name);
 	if (!acd->aux_clk) {
 		pr_err("%s: unable to get clock %s\n", __func__, clk_name);
@@ -278,8 +275,6 @@ static void rprm_auxclk_release(struct rprm_auxclk_depot *obj)
 	clk_put((struct clk *)obj->src);
 
 // [LGE_UPDATE_S] [junhyoung.cho@lge.com] [2012-07-04] OMAPS00273242 [LGE-U2] MCLK is high when Camera is off
-    printk("<<< release auxclk_ck %s\n", obj->aux_clk->name);
-
 #if 1   // CLK_EXT_SET - OMAPS00273242
     omap_writew(0x000f, 0x4A10019A);
 #endif
@@ -914,6 +909,71 @@ out:
 	return ret;
 }
 
+static int _request_max_freq(struct rprm_elem *e, unsigned long *freq)
+{
+	int ret = 0;
+
+	switch (e->type) {
+	case RPRM_IVAHD:
+	case RPRM_FDIF:
+		*freq = rpres_get_max_freq(e->handle);
+		break;
+	default:
+		pr_err("%s: not supported for resource type %d!\n",
+							__func__, e->type);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static int _request_data(struct rprm_elem *e, int type, void *data, int len)
+{
+	int ret = 0;
+
+	switch (type) {
+	case RPRM_MAX_FREQ:
+		if (len != sizeof(unsigned long)) {
+			ret = -EINVAL;
+			break;
+		}
+		ret = _request_max_freq(e, data);
+		break;
+	default:
+		pr_err("%s: invalid data request %d!\n", __func__, type);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static int rprm_req_data(struct rprm *rprm, u32 addr, int res_id,
+				void *data, int len)
+{
+	int ret = 0;
+	struct rprm_elem *e;
+	struct rprm_request_data *rd = data;
+
+	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+
+	e = idr_find(&rprm->id_list, res_id);
+	if (!e || e->src != addr) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = _request_data(e, rd->type, rd->data, len - sizeof(*rd));
+out:
+	mutex_unlock(&rprm->lock);
+	return ret;
+}
+
 static void rprm_cb(struct rpmsg_channel *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
@@ -982,6 +1042,17 @@ static void rprm_cb(struct rpmsg_channel *rpdev, void *data, int len,
 		if (ret)
 			dev_err(dev, "rel constraints failed! ret %d\n", ret);
 		return;
+	case RPRM_REQ_DATA:
+		r_sz = len - sizeof(*req);
+		if (r_sz < 0) {
+			r_sz = 0;
+			ret = -EINVAL;
+			break;
+		}
+		ret = rprm_req_data(rprm, src, req->res_id, req->data, r_sz);
+		if (ret)
+			dev_err(dev, "request data failed! ret %d\n", ret);
+		break;
 	default:
 		dev_err(dev, "Unknow request\n");
 		ret = -EINVAL;
@@ -1183,7 +1254,7 @@ static struct rpmsg_device_id rprm_id_table[] = {
 	},
 	{ },
 };
-MODULE_DEVICE_TABLE(platform, rprm_id_table);
+MODULE_DEVICE_TABLE(rpmsg, rprm_id_table);
 
 static struct rpmsg_driver rprm_driver = {
 	.drv.name	= KBUILD_MODNAME,

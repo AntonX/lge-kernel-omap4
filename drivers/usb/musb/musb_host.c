@@ -1113,6 +1113,11 @@ void musb_host_tx(struct musb *musb, u8 epnum)
 		return;
 	}
 
+	if (!qh->is_ready) {
+		dev_dbg(musb->controller, "received TX%d completion when qh is not ready\n", epnum);
+		return;
+	}
+
 	pipe = urb->pipe;
 	dma = is_dma_capable() ? hw_ep->tx_channel : NULL;
 	dev_dbg(musb->controller, "OUT/TX%d end, csr %04x%s\n", epnum, tx_csr,
@@ -1451,6 +1456,12 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 		return;
 	}
 
+	if (!qh->is_ready) {
+		dev_dbg(musb->controller, "received RX%d completion when qh is not ready\n", epnum);
+		musb_h_flush_rxfifo(hw_ep, MUSB_RXCSR_CLRDATATOG);
+		return;
+	}
+
 	pipe = urb->pipe;
 
 	dev_dbg(musb->controller, "<== hw %d rxcsr %04x, urb actual %d (+dma %zu)\n",
@@ -1733,6 +1744,11 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 				c->channel_release(dma);
 				hw_ep->rx_channel = NULL;
 				dma = NULL;
+				val = musb_readw(epio, MUSB_RXCSR);
+				val &= ~(MUSB_RXCSR_DMAENAB
+					| MUSB_RXCSR_H_AUTOREQ
+					| MUSB_RXCSR_AUTOCLEAR);
+				musb_writew(epio, MUSB_RXCSR, val);
 				/* REVISIT reset CSR */
 			}
 		}

@@ -104,9 +104,7 @@ EXPORT_SYMBOL_GPL(blk_queue_lld_busy);
  * @lim:  the queue_limits structure to reset
  *
  * Description:
- *   Returns a queue_limit struct to its default state.  Can be used by
- *   stacking drivers like DM that stage table swaps and reuse an
- *   existing device queue.
+ *   Returns a queue_limit struct to its default state.
  */
 void blk_set_default_limits(struct queue_limits *lim)
 {
@@ -145,7 +143,6 @@ void blk_set_stacking_limits(struct queue_limits *lim)
 	lim->discard_zeroes_data = 1;
 	lim->max_segments = USHRT_MAX;
 	lim->max_hw_sectors = UINT_MAX;
-	lim->max_segment_size = UINT_MAX;
 
 	lim->max_sectors = BLK_DEF_MAX_SECTORS;
 }

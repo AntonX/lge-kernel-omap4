@@ -38,6 +38,7 @@
 #include <mach/emif.h>
 #include <mach/lpddr2-elpida.h>
 #include <mach/dmm.h>
+#include <mach/omap4_ion.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -55,7 +56,6 @@
 #include "timer-gp.h"
 
 #include "board-panda.h"
-#include "omap4_ion.h"
 #include "omap_ram_console.h"
 #include "hsmmc.h"
 #include "control.h"
@@ -816,6 +816,7 @@ static void __init omap4_panda_map_io(void)
 
 static void __init omap4_panda_reserve(void)
 {
+	omap_init_ram_size();
 	omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
 			OMAP_RAM_CONSOLE_SIZE_DEFAULT);
 

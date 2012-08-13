@@ -15,7 +15,7 @@
 #include <linux/omap_ion.h>
 #include <linux/platform_device.h>
 
-#include "omap4_ion.h"
+#include <mach/omap4_ion.h>
 
 static struct ion_platform_data omap4_ion_data = {
 	.nr = 5,
@@ -38,11 +38,7 @@ static struct ion_platform_data omap4_ion_data = {
 			.type = OMAP_ION_HEAP_TYPE_TILER,
 			.id = OMAP_ION_HEAP_NONSECURE_TILER,
 			.name = "nonsecure_tiler",
-#if defined(CONFIG_MACH_LGE_COSMO)
-			.base = PHYS_ADDR_DUCATI_MEM - OMAP4_ION_HEAP_TILER_SIZE - OMAP4_ION_HEAP_NONSECURE_TILER_SIZE, // 512MB - 18827 //0x80000000 + (SZ_1M * 389),
-#else
 			.base = 0x80000000 + SZ_512M + SZ_2M,
-#endif
 			.size = OMAP4_ION_HEAP_NONSECURE_TILER_SIZE,
 		},
 		{

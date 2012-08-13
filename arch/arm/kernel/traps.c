@@ -36,12 +36,18 @@
 
 #include "signal.h"
 
-static const char *handler[]= { "prefetch abort", "data abort", "address exception", "interrupt" };
-
 #ifdef CONFIG_LGE_HANDLE_PANIC
 static int first_call_chain = 0;
 static int first_die = 1;
 #endif
+
+static const char *handler[]= {
+	"prefetch abort",
+	"data abort",
+	"address exception",
+	"interrupt",
+	"undefined instruction",
+};
 
 void *vectors_page;
 

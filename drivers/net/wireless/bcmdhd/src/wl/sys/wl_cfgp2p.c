@@ -46,10 +46,6 @@
 #include <wldev_common.h>
 #include <wl_android.h>
 
-#if defined(CONFIG_HAS_EARLYSUSPEND) && ! defined(SUPPORT_PM2_ONLY)
-extern uint wifi_pm;
-#endif
-
 static s8 scanparambuf[WLC_IOCTL_SMLEN];
 
 static bool
@@ -1266,6 +1262,7 @@ wl_cfgp2p_listen_expired(unsigned long data)
 	struct wl_priv *wl = (struct wl_priv *) data;
 
 	CFGP2P_DBG((" Enter\n"));
+	memset(&msg, 0, sizeof(wl_event_msg_t));
 	msg.event_type =  hton32(WLC_E_P2P_DISC_LISTEN_COMPLETE);
 	wl_cfg80211_event(wl_to_p2p_bss_ndev(wl, P2PAPI_BSSCFG_DEVICE), &msg, NULL);
 }
@@ -1735,10 +1732,6 @@ wl_cfgp2p_set_p2p_ps(struct wl_priv *wl, struct net_device *ndev, char* buf, int
 		}
 
 		if ((legacy_ps != -1) && ((legacy_ps == PM_MAX) || (legacy_ps == PM_OFF))) {
-#if !defined(SUPPORT_PM2_ONLY)
-			if (legacy_ps == PM_MAX && wifi_pm == 1)
-				legacy_ps = PM_FAST;
-#endif
 			ret = wldev_ioctl(wl_to_p2p_bss_ndev(wl, P2PAPI_BSSCFG_CONNECTION),
 				WLC_SET_PM, &legacy_ps, sizeof(legacy_ps), true);
 			if (unlikely(ret)) {

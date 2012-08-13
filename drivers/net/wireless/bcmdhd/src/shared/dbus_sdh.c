@@ -2811,7 +2811,7 @@ dbus_sdio_pktgen_init(sdio_info_t *sdio_info)
 
 	/* Default to per-watchdog burst with 10s print time */
 	sdio_info->pktgen_freq = 1;
-	sdio_info->pktgen_print = 10000/dhd_watchdog_ms;
+	sdio_info->pktgen_print = dhd_watchdog_ms ? 10000 / dhd_watchdog_ms : 0;
 	sdio_info->pktgen_count = (dhd_pktgen * dhd_watchdog_ms + 999) / 1000;
 
 	/* Default to echo mode */

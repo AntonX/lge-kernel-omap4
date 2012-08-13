@@ -1133,7 +1133,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	u64 bootaddr = 0;
 	struct fw_header *image;
 	struct fw_section *section;
-	int left, ret;
+	int left, ret = -EINVAL;
 
 	if (!fw) {
 		dev_err(dev, "%s: failed to load %s\n", __func__, fwfile);
@@ -1180,6 +1180,10 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 
 	left = fw->size - sizeof(struct fw_header) - image->header_len;
 
+	/* event currently used to bump the remoteproc to max freq
+	 * while booting.  */
+	_event_notify(rproc, RPROC_PRELOAD, NULL);
+
 	ret = rproc_process_fw(rproc, section, left, &bootaddr);
 	if (ret) {
 		dev_err(dev, "Failed to process the image: %d\n", ret);
@@ -1193,6 +1197,8 @@ out:
 complete_fw:
 	/* allow all contexts calling rproc_put() to proceed */
 	complete_all(&rproc->firmware_loading_complete);
+	if (ret)
+		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);
 }
 
 static int rproc_loader(struct rproc *rproc)

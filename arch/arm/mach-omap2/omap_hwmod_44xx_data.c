@@ -1260,6 +1260,8 @@ static struct omap_hwmod omap44xx_bb2d_hwmod = {
 	.prcm = {
 		.omap4 = {
 			.clkctrl_reg = OMAP4470_CM_DSS_BB2D_CLKCTRL,
+			/* FIXME no BB2D def*/
+			.context_reg = OMAP4430_RM_DSS_DEISS_CONTEXT,
 		},
 	},
 	.slaves		= omap44xx_bb2d_slaves,
@@ -3334,6 +3336,7 @@ static struct omap_hwmod omap44xx_ipu_c0_hwmod = {
 	.flags		= HWMOD_INIT_NO_RESET,
 	.rst_lines	= omap44xx_ipu_c0_resets,
 	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_ipu_c0_resets),
+	.main_clk       = "ipu_fck",
 	.prcm		= {
 		.omap4 = {
 			.rstctrl_reg = OMAP4430_RM_DUCATI_RSTCTRL,
@@ -3349,6 +3352,7 @@ static struct omap_hwmod omap44xx_ipu_c1_hwmod = {
 	.flags		= HWMOD_INIT_NO_RESET,
 	.rst_lines	= omap44xx_ipu_c1_resets,
 	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_ipu_c1_resets),
+	.main_clk       = "ipu_fck",
 	.prcm		= {
 		.omap4 = {
 			.rstctrl_reg = OMAP4430_RM_DUCATI_RSTCTRL,

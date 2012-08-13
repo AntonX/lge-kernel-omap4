@@ -49,10 +49,6 @@ extern struct ion_device *omap_ion_device;
 /* maximum OMX devices this driver can handle */
 #define MAX_OMX_DEVICES		8
 
-#ifdef CONFIG_MACH_LGE_U2
-extern unsigned int system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
-#endif
-
 enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_NONE          = 0,
 	RPC_OMX_MAP_INFO_ONE_BUF       = 1,
@@ -314,7 +310,7 @@ static void rpmsg_omx_cb(struct rpmsg_channel *rpdev, void *data, int len,
 	}
 }
 
-static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, struct omx_conn_req  *req) // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
+static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, struct omx_conn_req  *req)
 {
 	struct omx_msg_hdr *hdr;
 	struct omx_conn_req *payload;
@@ -330,14 +326,9 @@ static int rpmsg_omx_connect(struct rpmsg_omx_instance *omx, struct omx_conn_req
 	hdr = (struct omx_msg_hdr *)connect_msg;
 	hdr->type = OMX_CONN_REQ;
 	hdr->flags = 0;
-	// [LGE_UPDATE_S] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
 	hdr->len = sizeof(*payload);
 	payload = (struct omx_conn_req *)hdr->data;
 	strcpy(payload->name, req->name);
-	strcpy(payload->time_stamp, req->time_stamp);
-#ifdef CONFIG_MACH_LGE_U2
-	payload->hw_rev = system_rev; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-06-27] board HW revision
-#endif
 
 	/* send a conn req to the remote OMX connection service. use
 	 * the new local address that was just allocated by ->open */
@@ -370,7 +361,7 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct rpmsg_omx_instance *omx = filp->private_data;
 	struct rpmsg_omx_service *omxserv = omx->omxserv;
-	struct omx_conn_req buf; // [LGE_UPDATE] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
+	struct omx_conn_req buf;
 	int ret = 0;
 
 	dev_dbg(omxserv->dev, "%s: cmd %d, arg 0x%lx\n", __func__, cmd, arg);
@@ -391,16 +382,14 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		/* make sure user input is null terminated */
-		// [LGE_UPDATE_S] [dongyu.gwak@lge.com] [2012-03-21] time stamp for debugging
 		buf.name[sizeof(buf.name)-1] = '\0';
-		buf.time_stamp[sizeof(buf.time_stamp)-1] = '\0';
-		// [LGE_UPDATE_E] [dongyu.gwak@lge.com] [2012-03-21]
 		ret = rpmsg_omx_connect(omx, &buf);
 		break;
 #ifdef CONFIG_ION_OMAP
 	case OMX_IOCIONREGISTER:
 	{
 		struct ion_fd_data data;
+
 		if (copy_from_user(&data, (char __user *) arg, sizeof(data))) {
 			dev_err(omxserv->dev,
 				"%s: %d: copy_from_user fail: %d\n", __func__,
@@ -408,9 +397,9 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 		data.handle = ion_import_fd(omx->ion_client, data.fd);
-		if (IS_ERR(data.handle))
+		if (IS_ERR_OR_NULL(data.handle))
 			data.handle = NULL;
-		if (copy_to_user(&data, (char __user *) arg, sizeof(data))) {
+		if (copy_to_user((char __user *) arg, &data, sizeof(data))) {
 			dev_err(omxserv->dev,
 				"%s: %d: copy_to_user fail: %d\n", __func__,
 				_IOC_NR(cmd), ret);
@@ -421,6 +410,7 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case OMX_IOCIONUNREGISTER:
 	{
 		struct ion_fd_data data;
+
 		if (copy_from_user(&data, (char __user *) arg, sizeof(data))) {
 			dev_err(omxserv->dev,
 				"%s: %d: copy_from_user fail: %d\n", __func__,
@@ -428,7 +418,7 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 		ion_free(omx->ion_client, data.handle);
-		if (copy_to_user(&data, (char __user *) arg, sizeof(data))) {
+		if (copy_to_user((char __user *) arg, &data, sizeof(data))) {
 			dev_err(omxserv->dev,
 				"%s: %d: copy_to_user fail: %d\n", __func__,
 				_IOC_NR(cmd), ret);
@@ -614,6 +604,9 @@ static ssize_t rpmsg_omx_write(struct file *filp, const char __user *ubuf,
 	struct omx_msg_hdr *hdr = (struct omx_msg_hdr *) kbuf;
 	int use, ret;
 
+	if (omx->state == OMX_FAIL)
+		return -ENXIO;
+
 	if (omx->state != OMX_CONNECTED)
 		return -ENOTCONN;
 
@@ -628,7 +621,7 @@ static ssize_t rpmsg_omx_write(struct file *filp, const char __user *ubuf,
 	 * be significant in real use cases
 	 */
 	if (copy_from_user(hdr->data, ubuf, use))
-		return -EMSGSIZE;
+		return -EFAULT;
 
 	ret = _rpmsg_omx_map_buf(omx, hdr->data);
 	if (ret < 0)
@@ -820,15 +813,12 @@ static void rpmsg_omx_driver_cb(struct rpmsg_channel *rpdev, void *data,
 }
 
 static struct rpmsg_device_id rpmsg_omx_id_table[] = {
-#ifdef CONFIG_MACH_LGE_COSMO
-	{ .name	= "rpmsg-omx" }, /* ipu_c0 */
-#endif
 	{ .name	= "rpmsg-omx0" }, /* ipu_c0 */
 	{ .name	= "rpmsg-omx1" }, /* ipu_c1 */
 	{ .name	= "rpmsg-omx2" }, /* dsp */
 	{ },
 };
-MODULE_DEVICE_TABLE(platform, rpmsg_omx_id_table);
+MODULE_DEVICE_TABLE(rpmsg, rpmsg_omx_id_table);
 
 static struct rpmsg_driver rpmsg_omx_driver = {
 	.drv.name	= KBUILD_MODNAME,
