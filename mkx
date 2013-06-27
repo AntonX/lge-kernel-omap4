@@ -11,7 +11,9 @@
 # modify this to your toolchain location
 
 #DEFAULT_CROSS_COMPILE=/home/anton/android/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
-DEFAULT_CROSS_COMPILE=/home/anton/android/prebuilts/gcc/linux-x86/arm/android-toolchain-eabi/bin/arm-eabi-
+#DEFAULT_CROSS_COMPILE=/home/anton/android/prebuilts/gcc/linux-x86/arm/android-toolchain-eabi/bin/arm-eabi-
+#DEFAULT_CROSS_COMPILE=/home/anton/cm11/prebuilt/linux-x86/toolchain/linaro-4.7/bin/arm-eabi-
+DEFAULT_CROSS_COMPILE=/home/anton/cm11/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7/bin/arm-eabi-
 
 # modify to your defconfig
 
@@ -83,7 +85,7 @@ echo Making Boot.img...
 
 # take ramdisk.img from CyanogenMod build
 
-MKBOOTIMG=/home/anton/android/out/host/linux-x86/bin/mkbootimg
+MKBOOTIMG=../../../out/host/linux-x86/bin/mkbootimg
 ZIMAGE=$MAKE_OUTPUT_DIR/arch/arm/boot/zImage
 RAMDISK_DIR=$MAKE_OUTPUT_DIR
 

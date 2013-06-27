@@ -783,6 +783,14 @@ static struct clk virt_dsp_ck = {
 	.set_rate	= &omap4_virt_dsp_set_rate,
 };
 
+static struct clk virt_lcd_pclk = {
+	.name		= "virt_lcd_pclk",
+	.parent		= NULL,
+	.ops		= &clkops_null,
+	.round_rate	= &clk_dummy_round_rate,
+	.set_rate	= &clk_dummy_set_rate,
+};
+
 /* DPLL_MPU */
 static struct dpll_data dpll_mpu_dd = {
 	.mult_div1_reg	= OMAP4430_CM_CLKSEL_DPLL_MPU,
@@ -1595,7 +1603,7 @@ static struct clk dmic_sync_mux_ck = {
 	.clksel		= dmic_sync_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_DMIC_CLKCTRL,
-	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_MASK,
+	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_CM1_ABE_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -2112,7 +2120,7 @@ static struct clk mcasp_sync_mux_ck = {
 	.clksel		= dmic_sync_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCASP_CLKCTRL,
-	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_MASK,
+	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_CM1_ABE_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -2147,7 +2155,7 @@ static struct clk mcbsp1_sync_mux_ck = {
 	.clksel		= dmic_sync_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP1_CLKCTRL,
-	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_MASK,
+	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_CM1_ABE_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -2182,7 +2190,7 @@ static struct clk mcbsp2_sync_mux_ck = {
 	.clksel		= dmic_sync_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP2_CLKCTRL,
-	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_MASK,
+	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_CM1_ABE_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -2217,7 +2225,7 @@ static struct clk mcbsp3_sync_mux_ck = {
 	.clksel		= dmic_sync_mux_sel,
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP3_CLKCTRL,
-	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_MASK,
+	.clksel_mask	= OMAP4430_CLKSEL_INTERNAL_SOURCE_CM1_ABE_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -3549,6 +3557,7 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"dpll_iva_m5x2_ck",		&dpll_iva_m5x2_ck,	CK_44XX),
 	CLK(NULL,	"virt_iva_ck",			&virt_iva_ck,	CK_44XX),
 	CLK(NULL,	"virt_dsp_ck",			&virt_dsp_ck,	CK_44XX),
+	CLK(NULL,	"virt_lcd_pclk",		&virt_lcd_pclk,	CK_44XX),
 	CLK(NULL,	"dpll_mpu_ck",			&dpll_mpu_ck,	CK_44XX),
 	CLK(NULL,	"virt_dpll_mpu_ck",		&virt_dpll_mpu_ck,	(CK_446X | CK_447X)),
 	CLK(NULL,	"dpll_mpu_m2_ck",		&dpll_mpu_m2_ck,	CK_44XX),
@@ -4068,8 +4077,6 @@ int __init omap4xxx_clk_init(void)
 	if (cpu_is_omap443x()) {
 		cpu_mask = RATE_IN_443X;
 		cpu_clkflg = CK_443X;
-		/* i723 errata fix. Reconfigure DPLL_ABE */
-		omap4_dpll_abe_reconfigure();
 	} else if (cpu_is_omap446x()) {
 		cpu_mask = RATE_IN_446X;
 		cpu_clkflg = CK_446X;
@@ -4077,6 +4084,9 @@ int __init omap4xxx_clk_init(void)
 		cpu_mask = RATE_IN_447X;
 		cpu_clkflg = CK_447X;
 	}
+
+	/* i723 errata fix. Reconfigure DPLL_ABE */
+	omap4_dpll_abe_reconfigure();
 
 	clk_init(&omap2_clk_functions);
 

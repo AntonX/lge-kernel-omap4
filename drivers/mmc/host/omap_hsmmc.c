@@ -51,6 +51,7 @@
 /* OMAP HSMMC Host Controller Registers */
 #define OMAP_HSMMC_SYSCONFIG	0x0010
 #define OMAP_HSMMC_SYSSTATUS	0x0014
+#define OMAP_HSMMC_CSRE		0x0024
 #define OMAP_HSMMC_CON		0x002C
 #define OMAP_HSMMC_BLK		0x0104
 #define OMAP_HSMMC_ARG		0x0108
@@ -168,6 +169,9 @@
 #define OMAP_MMC_SLEEP_TIMEOUT		1000
 #define OMAP_MMC_OFF_TIMEOUT		8000
 
+/* Errata definitions */
+#define OMAP_HSMMC_ERRATA_I761		BIT(0)
+
 /*
  * One controller can have multiple slots, like on some omap boards using
  * omap.c controller driver. Luckily this is not currently done on any known
@@ -236,6 +240,7 @@ struct omap_hsmmc_host {
 	int			use_reg;
 	int			req_in_progress;
 	unsigned int		flags;
+	unsigned int		errata;
 
 	/* LGE_SJIT 2011-11-28 [dojip.kim@lge.com] Enhance the error handling */
 	unsigned int		eject; /* eject state */
@@ -1137,6 +1142,22 @@ omap_hsmmc_xfer_done(struct omap_hsmmc_host *host, struct mmc_data *data)
 	return;
 }
 
+static int
+omap_hsmmc_errata_i761(struct omap_hsmmc_host *host, struct mmc_command *cmd)
+{
+	u32 rsp10, csre;
+
+	if ((cmd->flags & MMC_RSP_R1) == MMC_RSP_R1
+			|| (host->mmc->card && (mmc_card_sd(host->mmc->card)
+			|| mmc_card_sdio(host->mmc->card))
+			&& (cmd->flags & MMC_RSP_R5))) {
+		rsp10 = OMAP_HSMMC_READ(host->base, RSP10);
+		csre = OMAP_HSMMC_READ(host->base, CSRE);
+		return rsp10 & csre;
+	}
+	return 0;
+}
+
 /*
  * Notify the core about command completion
  */
@@ -1392,6 +1413,17 @@ static void omap_hsmmc_do_irq(struct omap_hsmmc_host *host, int status)
 			OMAP_HSMMC_READ(host->base, ADMA_SAL),
 			OMAP_HSMMC_READ(host->base, PSTATE));
 
+	}
+
+	/* Errata i761 */
+	if ((host->errata & OMAP_HSMMC_ERRATA_I761) && host->cmd
+			&& omap_hsmmc_errata_i761(host, host->cmd)) {
+		/* Do the same as for CARD_ERR case */
+		dev_dbg(mmc_dev(host->mmc),
+			"Ignoring card err CMD%d\n", host->cmd->opcode);
+		end_cmd = 1;
+		if (host->data)
+			end_trans = 1;
 	}
 
 	OMAP_HSMMC_WRITE(host->base, STAT, status);
@@ -2530,6 +2562,10 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	host->power_mode = MMC_POWER_OFF;
 	host->flags	= AUTO_CMD12;
 
+	host->errata = 0;
+	if (cpu_is_omap44xx())
+		host->errata |= OMAP_HSMMC_ERRATA_I761;
+
 	host->master_clock = OMAP_MMC_MASTER_CLOCK;
 	if (mmc_slot(host).features & HSMMC_HAS_48MHZ_MASTER_CLK)
 		host->master_clock = OMAP_MMC_MASTER_CLOCK / 2;
@@ -2800,7 +2836,7 @@ static int omap_hsmmc_remove(struct platform_device *pdev)
 	struct resource *res;
 
 	if (host) {
-		mmc_host_enable(host->mmc);
+		mmc_claim_host(host->mmc);
 		mmc_remove_host(host->mmc);
 		if (host->use_reg)
 			omap_hsmmc_reg_put(host);
@@ -2821,7 +2857,7 @@ static int omap_hsmmc_remove(struct platform_device *pdev)
 			dma_free_coherent(NULL, ADMA_TABLE_SZ,
 				host->adma_table, host->phy_adma_table);
 
-		mmc_host_disable(host->mmc);
+		mmc_release_host(host->mmc);
 		pm_runtime_suspend(host->dev);
 
 		clk_put(host->fclk);
@@ -2878,11 +2914,11 @@ static int omap_hsmmc_suspend(struct device *dev)
 			host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
 		ret = mmc_suspend_host(host->mmc);
 		if (ret == 0) {
-			mmc_host_enable(host->mmc);
+			mmc_claim_host(host->mmc);
 			omap_hsmmc_disable_irq(host);
 			OMAP_HSMMC_WRITE(host->base, HCTL,
 				OMAP_HSMMC_READ(host->base, HCTL) & ~SDBP);
-			mmc_host_disable(host->mmc);
+			mmc_release_host_sync(host->mmc);
 
 			if (host->got_dbclk)
 				clk_disable(host->dbclk);
@@ -2918,9 +2954,7 @@ static int omap_hsmmc_resume(struct device *dev)
 		return 0;
 
 	if (host) {
-		if (mmc_host_enable(host->mmc) != 0) {
-			goto clk_en_err;
-		}
+		mmc_claim_host(host->mmc);
 
 		if (host->got_dbclk)
 			clk_enable(host->dbclk);
@@ -2941,14 +2975,9 @@ static int omap_hsmmc_resume(struct device *dev)
 		if (ret == 0)
 			host->suspended = 0;
 
-		mmc_host_lazy_disable(host->mmc);
+		mmc_release_host(host->mmc);
 	}
 
-	return ret;
-
-clk_en_err:
-	dev_dbg(mmc_dev(host->mmc),
-		"Failed to enable MMC clocks during resume\n");
 	return ret;
 }
 
