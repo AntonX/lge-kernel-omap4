@@ -2728,7 +2728,7 @@ static void twl6030_bci_battery_work(struct work_struct *work)
 		charger_adc_code = req.rbuf[CHARGER_TEMP_CHANNEL];
               parm_adc_code = req.rbuf[PARM_TEMP_CHANNEL];
 
-              printk("Charger_ADC_Value = %d, PARM_ADC_Value = %d\n", charger_adc_code,parm_adc_code);
+              DCHG("Charger_ADC_Value = %d, PARM_ADC_Value = %d\n", charger_adc_code,parm_adc_code);
 	
 		di->temp_charger_adc = charger_adc_code;
 		di->temp_parm_adc = parm_adc_code;
