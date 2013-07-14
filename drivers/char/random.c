@@ -258,6 +258,8 @@
 #include <asm/irq.h>
 #include <asm/io.h>
 
+#define FAST_RANDOM_READ
+
 /*
  * Configuration information
  */
@@ -270,14 +272,14 @@
  * The minimum number of bits of entropy before we wake up a read on
  * /dev/random.  Should be enough to do a significant reseed.
  */
-static int random_read_wakeup_thresh = 64;
+static int random_read_wakeup_thresh = 128; //64;
 
 /*
  * If the entropy count falls under this number of bits, then we
  * should wake up processes which are selecting or polling on write
  * access to /dev/random.
  */
-static int random_write_wakeup_thresh = 128;
+static int random_write_wakeup_thresh = 512; //128;
 
 /*
  * When the input pool goes over trickle_thresh, start dropping most
@@ -1004,6 +1006,9 @@ void rand_initialize_disk(struct gendisk *disk)
 static ssize_t
 random_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
+#ifdef FAST_RANDOM_READ
+	return extract_entropy_user(&nonblocking_pool, buf, nbytes); 
+#else
 	ssize_t n, retval = 0, count = 0;
 
 	if (nbytes == 0)
@@ -1055,6 +1060,7 @@ random_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 	}
 
 	return (count ? count : retval);
+#endif
 }
 
 static ssize_t
