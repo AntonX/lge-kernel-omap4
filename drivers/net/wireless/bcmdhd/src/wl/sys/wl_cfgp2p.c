@@ -781,9 +781,16 @@ wl_cfgp2p_escan(struct wl_priv *wl, struct net_device *dev, u16 active,
 	eparams->params.channel_num = htod32((0 << WL_SCAN_PARAMS_NSSID_SHIFT) |
 	    (num_chans & WL_SCAN_PARAMS_COUNT_MASK));
 
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds" // [antsvx] decalered as channel_list[1] at end of structure (legit), linaro doesn't like it
+
 	for (i = 0; i < num_chans; i++) {
 		eparams->params.channel_list[i] = wl_ch_host_to_driver(channels[i]);
 	}
+
+#pragma GCC diagnostic pop
+
 	eparams->version = htod32(ESCAN_REQ_VERSION);
 	eparams->action =  htod16(action);
 	eparams->sync_id = htod16(0x1234);
