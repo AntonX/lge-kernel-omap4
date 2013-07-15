@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# antsvx
+
+# Before building, create kernel config by executing command:
+# $./mkx -config
+#
+# Use "$./mkx -clean" to kill old .o
+#
+
+# modify this to your toolchain location
+
+#DEFAULT_CROSS_COMPILE=/home/anton/android/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+DEFAULT_CROSS_COMPILE=/home/anton/android/prebuilts/gcc/linux-x86/arm/android-toolchain-eabi/bin/arm-eabi-
+
+# modify to your defconfig
+
+KERNEL_DEFCONFIG=cyanogenmod_p769_defconfig
+
+MAKE_OUTPUT_DIR=../../../out/KERNEL_OBJ_P769
+
+#
+
+# check the toolchain
+
+if [ ! -e ${CROSS_COMPILE}gcc ] ; then # export variable is not set; try our own
+  CROSS_COMPILE=$DEFAULT_CROSS_COMPILE
+fi
+
+if [ ! -e ${CROSS_COMPILE}gcc ] ; then
+  echo "!!! Toolchain not found. Use:"
+  echo "!!!   \$git clone https://android.googlesource.com/platform/prebuilt"
+  echo "!!!   \$export CROSS_COMPILE=\"Your_Toolchain_Location/bin/arm-eabi-\""
+  exit 0
+fi
+
+CPU_NUMBER=`grep 'processor' /proc/cpuinfo | wc -l`
+
+##############################################################################
+
+if [ "$MAKE_OUTPUT_DIR" != "" ] ; then
+  if [ ! -d "$MAKE_OUTPUT_DIR" ]; then
+    mkdir $MAKE_OUTPUT_DIR
+  fi
+  OUTPUT_DIR=O=$MAKE_OUTPUT_DIR  
+fi
+
+if [ "$1" == "-clean" ] ; then
+  echo Cleaning...
+  make mrproper
+  make mrproper $OUTPUT_DIR
+  echo Run with -config to create configuration
+  exit 0
+fi
+
+if [ "$1" == "-softclean" ] ; then
+  echo Cleaning [soft]...
+  make clean
+  make clean $OUTPUT_DIR
+  exit 0
+fi
+
+if [ "$1" == "-config" ] ; then
+  echo Creating $KERNEL_DEFCONFIG config...
+  make $KERNEL_DEFCONFIG $OUTPUT_DIR ARCH=arm
+  exit 0
+fi
+
+# run the build
+
+if [ ! -e $MAKE_OUTPUT_DIR/.config ] ; then
+  echo Config not found, creating...
+  make $KERNEL_DEFCONFIG $OUTPUT_DIR ARCH=arm
+fi 
+
+echo Building...
+
+make -C $PWD $OUTPUT_DIR ARCH=arm -j$CPU_NUMBER CROSS_COMPILE=$CROSS_COMPILE zImage
+
+# make boot.img
+
+echo Making Boot.img...
+
+# take ramdisk.img from CyanogenMod build
+
+MKBOOTIMG=/home/anton/android/out/host/linux-x86/bin/mkbootimg
+ZIMAGE=$MAKE_OUTPUT_DIR/arch/arm/boot/zImage
+RAMDISK_DIR=$MAKE_OUTPUT_DIR
+
+if [ ! -e $RAMDISK_DIR/ramdisk.img ] ; then
+  RAMDISK_DIR=$MAKE_OUTPUT_DIR/../target/product/p769
+fi
+
+$MKBOOTIMG --kernel $ZIMAGE --ramdisk $RAMDISK_DIR/ramdisk.img --base 0x80000000 --pagesize 2048 --output $MAKE_OUTPUT_DIR/boot.img
+
+#
+
+echo Done.
