@@ -561,7 +561,19 @@ all: vmlinux
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS 	+= -O2 \
+		   -march=armv7-a \
+                   -mtune=cortex-a9 \
+                   -mfpu=neon \
+                   -fsched-spec-load \
+                   -fgcse-after-reload \
+                   -fpredictive-commoning \
+                   -ftree-vectorize \
+                   -ftree-loop-im \
+                   -fmodulo-sched \
+                   -fmodulo-sched-allow-regmoves \
+                   -fno-inline-functions \
+                   -fno-unswitch-loops
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
