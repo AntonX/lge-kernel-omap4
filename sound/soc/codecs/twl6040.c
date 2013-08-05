@@ -48,6 +48,12 @@
 
 #include "twl6040.h"
 
+#define CONFIG_TWL6040_VOODOO_SOUND
+
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+#include "twl6040_voodoo.h"
+#endif
+
 #define TWL6040_RATES		SNDRV_PCM_RATE_8000_96000
 #define TWL6040_FORMATS	(SNDRV_PCM_FMTBIT_S32_LE)
 
@@ -984,6 +990,9 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 		out->right_step = out->right_vol;
 
 		if (!delayed_work_pending(work)) {
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+			voodoo_hook_hpvol_mute(false);
+#endif
 			out->ramp = TWL6040_RAMP_UP;
 			queue_delayed_work(queue, work,
 					msecs_to_jiffies(1));
@@ -995,10 +1004,12 @@ static int pga_event(struct snd_soc_dapm_widget *w,
 			break;
 
 		if (!delayed_work_pending(work)) {
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+			voodoo_hook_hpvol_mute(true);
+#endif
 			/* use volume ramp for power-down */
 			out->ramp = TWL6040_RAMP_DOWN;
 			INIT_COMPLETION(out->ramp_done);
-
 			queue_delayed_work(queue, work,
 					msecs_to_jiffies(1));
 
@@ -1596,6 +1607,7 @@ static irqreturn_t twl6040_hookkey_handler(int irq, void *data)
 }
 #endif /* CONFIG_SND_OMAP_SOC_LGE_JACK */
 
+#if defined (CONFIG_MACH_LGE_U2_P769)
 static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
@@ -1624,6 +1636,9 @@ static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 	if (out) {
 		out->left_vol = ucontrol->value.integer.value[0];
 		out->right_vol = ucontrol->value.integer.value[1];
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+		if (reg == TWL6040_REG_HSGAIN) voodoo_hook_hpvol(); 
+#endif		
 		if (!out->active)
 			return 1;
 	}
@@ -1661,6 +1676,8 @@ static int twl6040_get_volsw(struct snd_kcontrol *kcontrol,
 
 	return snd_soc_get_volsw(kcontrol, ucontrol);
 }
+
+#else
 
 static int twl6040_put_volsw_2r_vu(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
@@ -1724,6 +1741,7 @@ static int twl6040_get_volsw_2r(struct snd_kcontrol *kcontrol,
 
 	return snd_soc_get_volsw_2r(kcontrol, ucontrol);
 }
+#endif //CONFIG_MACH_LGE_U2_P769
 
 /*
  * MICATT volume control:
@@ -2421,7 +2439,22 @@ static int twl6040_startup(struct snd_pcm_substream *substream,
 				SNDRV_PCM_HW_PARAM_RATE,
 				priv->sysclk_constraints);
 
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+    		voodoo_enable_hpvol( false );
+  	}
+#endif
+
 	return 0;
+}
+
+static void twl6040_shutdown(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+{
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+	if ( substream->stream == SNDRV_PCM_STREAM_CAPTURE ) {
+		voodoo_enable_hpvol( true );
+	}
+#endif
 }
 
 static int twl6040_hw_params(struct snd_pcm_substream *substream,
@@ -2537,6 +2570,7 @@ static int twl6040_digital_mute(struct snd_soc_dai *dai, int mute)
 
 static struct snd_soc_dai_ops twl6040_dai_ops = {
 	.startup	= twl6040_startup,
+	.shutdown	= twl6040_shutdown,
 	.hw_params	= twl6040_hw_params,
 	.prepare	= twl6040_prepare,
 	.set_sysclk	= twl6040_set_dai_sysclk,
@@ -2795,6 +2829,10 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 				ARRAY_SIZE(twl6040_snd_controls));
 	twl6040_add_widgets(codec);
 
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+	voodoo_pcm_probe(codec);
+#endif
+
 	return 0;
 
 bias_err:
@@ -2828,6 +2866,10 @@ static int twl6040_remove(struct snd_soc_codec *codec)
 {
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 	struct twl6040_jack_data *jack = &priv->hs_jack;
+
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+	voodoo_pcm_remove();
+#endif
 
 	twl6040_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	/* LGE_SJIT 2011-12-09 [dojip.kim@lge.com] free irq hook */
@@ -2900,6 +2942,10 @@ static void __exit twl6040_codec_exit(void)
 	platform_driver_unregister(&twl6040_codec_driver);
 }
 module_exit(twl6040_codec_exit);
+
+#ifdef CONFIG_TWL6040_VOODOO_SOUND
+#include "twl6040_voodoo.c"
+#endif
 
 MODULE_DESCRIPTION("ASoC TWL6040 codec driver");
 MODULE_AUTHOR("Misael Lopez Cruz");
