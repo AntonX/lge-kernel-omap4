@@ -32,10 +32,18 @@
 #include <linux/delay.h>
 //mo2haewoon.you@lge.com <= [END]
 #endif
+#include <linux/mutex.h>
+
+#define CONFIG_SUPPORT_BLN
+
+#ifdef CONFIG_SUPPORT_BLN
+#include "leds-keypad-gpio-bln.h"
+#endif
 
 static int keypad_gpio;
 static int use_hold_key = 0;
 static int hold_key_gpio;
+static DEFINE_MUTEX(led_write_lock);
 
 #ifdef CONFIG_LGE_HANDLE_PANIC
 //mo2haewoon.you@lge.com => [START]  HIDDEN_RESET	
@@ -98,6 +106,12 @@ static void keypad_led_store(struct led_classdev *led_cdev,
 	}
 	else		
 	{
+		int val = bln_hook_led_write(value);
+		if (val < 0) return;
+		value = (enum led_brightness) val;
+		
+		mutex_lock(&led_write_lock);
+
 		if (value != 0 && value < 255) {
 			//printk(KERN_INFO "FRONT_LED: SYSFS_LED On!\n");
 			gpio_set_value(keypad_gpio, 1);
@@ -121,6 +135,8 @@ static void keypad_led_store(struct led_classdev *led_cdev,
 			cause_of_pw_pressed = 0;
 #endif
 	         }
+
+	         mutex_unlock(&led_write_lock);
          }
 //mo2haewoon.you@lge.com <= [END]
 #endif
@@ -198,12 +214,17 @@ static int __devinit keypad_led_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+
+	bln_control_register(&info->keypad_led_class_dev);
+
 	return ret;
 }
 
 static int keypad_led_remove(struct platform_device *pdev)
 {
 	struct keypad_led_data *info = platform_get_drvdata(pdev);
+
+	bln_control_deregister();
 
 	led_classdev_unregister(&info->keypad_led_class_dev);
 
@@ -231,6 +252,10 @@ static void __exit keypad_led_exit(void)
 
 module_init(keypad_led_init);
 module_exit(keypad_led_exit);
+
+#ifdef CONFIG_SUPPORT_BLN
+#include "leds-keypad-gpio-bln.c"
+#endif
 
 MODULE_DESCRIPTION("Keyboard/Button LEDS driver");
 MODULE_LICENSE("GPL");
