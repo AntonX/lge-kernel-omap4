@@ -2441,7 +2441,7 @@ static int twl6040_startup(struct snd_pcm_substream *substream,
 
 #ifdef CONFIG_TWL6040_VOODOO_SOUND
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-    		voodoo_enable_hpvol( false );
+    		voodoo_hook_enable_capture(true);
   	}
 #endif
 
@@ -2452,7 +2452,7 @@ static void twl6040_shutdown(struct snd_pcm_substream *substream, struct snd_soc
 {
 #ifdef CONFIG_TWL6040_VOODOO_SOUND
 	if ( substream->stream == SNDRV_PCM_STREAM_CAPTURE ) {
-		voodoo_enable_hpvol( true );
+		voodoo_hook_enable_capture(false);
 	}
 #endif
 }

@@ -25,9 +25,9 @@
 void voodoo_pcm_probe(struct snd_soc_codec *codec);
 void voodoo_pcm_remove(void);
 
-void voodoo_enable_hpvol(bool enable);
-
+void voodoo_hook_enable_capture(bool enable);
 void voodoo_hook_hpvol(void);
+bool voodoo_hook_write(unsigned int reg, unsigned int * value);
 void voodoo_hook_hpvol_mute(bool mute);
 
 #endif
