@@ -6,6 +6,7 @@
 #include <linux/wakelock.h>
 #include <linux/delay.h>
 #include <linux/android_alarm.h>
+#include <linux/time.h>
 
 int bln_control_register(struct led_classdev *pdev);
 void bln_control_deregister(void);

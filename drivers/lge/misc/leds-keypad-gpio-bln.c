@@ -42,7 +42,8 @@
 static struct led_classdev *bln_keypad_dev;
 
 static bool bln_enabled = false;
-static bool bln_on = false;
+static bool bln_on = false; // notificatin active and lights on
+static bool bln_ongoing = false; // notificatin active
 
 static bool bln_touch_led_enabled = true;
 
@@ -64,6 +65,11 @@ static bool bln_unhook = false;
 static unsigned int bln_timeout = 0;
 static struct timer_list bln_timer;
 #endif
+
+// timeout
+
+static ktime_t bln_end_time;
+static int bln_notification_timeout = 0; // in minutes
 
 // blinking
 
@@ -121,9 +127,36 @@ int bln_hook_led_write(int value)
   return new_value;
 }
 
+static inline int _ktime_compare(ktime_t lhs, ktime_t rhs)
+{
+	if (lhs.tv64 < rhs.tv64) return -1;
+	if (lhs.tv64 > rhs.tv64) return 1;
+	return 0;
+}
+
+static void bln_init_timeout(void)
+{
+	if (bln_enabled && bln_notification_timeout && !bln_ongoing) {
+		DEBUG_LOG("seconds: %u, bln_on: %d", bln_notification_timeout, bln_on);
+		bln_end_time = ktime_add(alarm_get_elapsed_realtime(), ktime_set(bln_notification_timeout * 60, 0));
+	} else
+    DEBUG_LOG("bailing: enabled: %d, timeout: %d, ongoing: %d", bln_enabled, bln_notification_timeout, bln_ongoing);
+}
+
+static bool bln_timeout_expired(void)
+{
+	if (bln_notification_timeout && _ktime_compare(alarm_get_elapsed_realtime(), bln_end_time) >= 0) {
+		printk("bln: ending by timeout\n");
+		bln_on = false;
+		return true;
+	}
+  DEBUG_LOG("remain: %lldns", ktime_sub(bln_end_time, alarm_get_elapsed_realtime()).tv64);
+	return false;
+}
+
 static bool bln_start_blinking_ex(bool start, unsigned int timeout_ms)
 {
-	DEBUG_LOG("start: %d, enabled: %d", start, bln_enabled && bln_on);
+	DEBUG_LOG("start: %d, bln_enabled: %d, bln_on: %d", start, bln_enabled, bln_on);
 
 	if (start) {
 		ktime_t delay;
@@ -148,7 +181,7 @@ static bool bln_start_blinking(bool start)
 
 static void bln_blink_queue_handler(struct work_struct *work)
 {
-	if (!(bln_enabled && bln_on && bln_blink_on)) {
+	if (!(bln_enabled && bln_on && bln_blink_on && !bln_timeout_expired())) {
 		if (wake_lock_active(&bln_blink_wakelock)) wake_unlock(&bln_blink_wakelock);
 		return;
 	}
@@ -205,9 +238,12 @@ static void bln_enable_notifications(bool on)
 	if (on) {
 		if (!bln_enabled || !bln_suspended) return;
 		bln_on = true;
+		bln_init_timeout();
 		bln_start_blinking_ex(true, 500); // start blinking and blink early first time
+    bln_ongoing = true;
 	} else {
 		bln_on = false;
+    bln_ongoing = false;
 		bln_start_blinking(false);
 		if (bln_suspended && bln_on) bln_write_led(false);
 	}
@@ -215,9 +251,12 @@ static void bln_enable_notifications(bool on)
 
 static void bln_early_suspend(struct early_suspend *h)
 {
-	DEBUG_LOG("suspended");
+	DEBUG_LOG("suspended, bln_enabled: %d, bln_on: %d", bln_enabled, bln_on);
 
 	bln_suspended = true;
+
+	//bln_start_blinking(true);
+	//bln_init_timeout();
 }
 
 static void bln_late_resume(struct early_suspend *h)
@@ -258,6 +297,28 @@ static ssize_t bln_notification_write(struct device *dev, struct device_attribut
 	DEBUG_LOG("data: %u", data);
 	
 	bln_enable_notifications(data != 0);
+
+	return size;
+}
+
+static ssize_t bln_notification_timeout_read(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%u\n", bln_notification_timeout);
+}
+
+static ssize_t bln_notification_timeout_write(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	unsigned int data;
+
+	if (sscanf(buf, "%u\n", &data) != 1) {
+		pr_info("%s: input error\n", __FUNCTION__);
+		return size;
+	}
+
+	DEBUG_LOG("data: %u", data);
+	
+	bln_notification_timeout = data;
+	bln_init_timeout();
 
 	return size;
 }
@@ -430,6 +491,10 @@ static DEVICE_ATTR(blink_strobe, S_IRUGO | S_IWUGO,
 static DEVICE_ATTR(blink_keep, S_IRUGO | S_IWUGO, 
                    bln_blink_keep_read, 
                    bln_blink_keep_write );
+
+static DEVICE_ATTR(notification_timeout, S_IRUGO | S_IWUGO, 
+                   bln_notification_timeout_read, 
+                   bln_notification_timeout_write );
                    
 //static DEVICE_ATTR(enable_touch_lights, S_IRUGO | S_IWUGO, 
 static DEVICE_ATTR(enable_touch_ex, S_IRUGO | S_IWUGO, 
@@ -448,6 +513,7 @@ static struct attribute *bln_notification_attributes[] = {
 	&dev_attr_version.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_notification_led.attr,
+	&dev_attr_notification_timeout.attr,
 	&dev_attr_blink_period_on.attr,
 	&dev_attr_blink_period_off.attr,
 //	&dev_attr_enable_touch_lights.attr,
@@ -475,8 +541,7 @@ int bln_control_register(struct led_classdev *pdev)
 
 	bln_keypad_dev = pdev;
 
-	bln_suspended = false;
-	bln_on = false;
+	bln_suspended = bln_on = bln_ongoing = false;
 
 	pr_info("%s misc_register(%s)\n", __FUNCTION__, bln_device.name);
 	ret = misc_register(&bln_device);
@@ -512,7 +577,7 @@ void bln_control_deregister(void)
 #ifdef USE_TOUCH_TIMEOUT
 	del_timer(&bln_timer);
 #endif
-	bln_on = false;
+	bln_on = bln_ongoing = false;
 	cancel_delayed_work(&bln_blink_work);
 	alarm_try_to_cancel(&bln_blink_alarm);
   	wake_lock_destroy(&bln_blink_wakelock);
