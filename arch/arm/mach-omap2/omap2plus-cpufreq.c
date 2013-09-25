@@ -746,7 +746,8 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,	const char *buf,
 			ret = sscanf(buf, "%lu", &volt_cur);
 			
 			if(ret != 1) {
-				return -EINVAL;
+				count = -EINVAL; 
+				goto lbl_exit;
 			}
 
 			/* alter voltage opp */
