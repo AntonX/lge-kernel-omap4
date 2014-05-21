@@ -248,7 +248,7 @@ static void tab_work_func(struct work_struct *work)
 	{
 		brightness = reduce_brightness_by_stage();
 
-		printk("[TAB]thermal backlight work!!! pcb thm:%d stage:%d brightness:%d\n",current_pcb_thm,curr_stage,brightness);
+		DEBUG_MSG("[TAB]thermal backlight work!!! pcb thm:%d stage:%d brightness:%d\n",current_pcb_thm,curr_stage,brightness);
 		lm3530_set_brightness_control(pdata_t, brightness);
 		prev_stage = curr_stage;
 	}
@@ -290,7 +290,7 @@ static int bl_common_flag = 0;
 static void  lm3530_early_suspend(struct early_suspend *h)
 {
 	struct	lm3530_platform_data*	pdata = container_of(h, struct lm3530_platform_data, early_suspend);
-	printk("[BL]%s\n",__func__);
+	DEBUG_MSG("[BL]%s\n",__func__);
 #ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
 	cancel_delayed_work(&thermal_wk);
 #endif
@@ -299,7 +299,7 @@ static void  lm3530_early_suspend(struct early_suspend *h)
 
 	atomic_set(&late_resume_flag, 0);
 
-	printk("[dyotest] %s, set brightness: 0, :flag:%d", __func__, atomic_read(&late_resume_flag));
+	DEBUG_MSG("[dyotest] %s, set brightness: 0, :flag:%d", __func__, atomic_read(&late_resume_flag));
 
 	lm3530_set_brightness_control(pdata, 0);
 
@@ -311,21 +311,21 @@ static void  lm3530_late_resume(struct early_suspend *h)
 {
 	struct	lm3530_platform_data*	pdata = container_of(h, struct lm3530_platform_data, early_suspend);
 	int brightness;
-	printk("[BL]%s, old_brightness=%d, \n",__func__,old_brightness);
+	DEBUG_MSG("[BL]%s, old_brightness=%d, \n",__func__,old_brightness);
 	pdata->private.reg_brr = 0x00;
 
 #ifdef LGE_TEMPERATURE_ADAPTED_BACKLIGHT
 	if (hot_stage_enable == true)
 		brightness= reduce_brightness_by_stage();
 #endif
-	printk("[dyotest] late_resume [BL]%s, old_brightness=%d, \n",__func__,old_brightness);
+	DEBUG_MSG("[dyotest] late_resume [BL]%s, old_brightness=%d, \n",__func__,old_brightness);
 
 	atomic_set(&late_resume_flag, 1);
 	brightness = old_brightness;
 
 	if(brightness)
 	{
-		printk("[dyotest] %s, set brightness:%d, :flag:%d\n", __func__, brightness, atomic_read(&late_resume_flag));
+		DEBUG_MSG("[dyotest] %s, set brightness:%d, :flag:%d\n", __func__, brightness, atomic_read(&late_resume_flag));
 		lm3530_set_brightness_control(pdata, brightness);
 	}
 
@@ -341,7 +341,7 @@ static ssize_t	brightness_store(struct device* dev,
 	struct	lm3530_platform_data*	pdata	=	dev->platform_data;
 	int	brightness	=	simple_strtol(buf, NULL, 10);
 
-	printk("[dyotest] brightness_store = [%d] \n",brightness);
+	DEBUG_MSG("[dyotest] brightness_store = [%d] \n",brightness);
 /* bl_common_flag = 1 -> write fade in/out register for backlight effect*/
 /* Not writing this register first entering is why the target dosen't adapt backlight effect in first backlight on from suspend*/
 	if(bl_common_flag < 1)
@@ -373,13 +373,13 @@ static ssize_t	brightness_store(struct device* dev,
 
 	if(!brightness)
 	{
-		printk("[dyotest] %s, set brightness:%d, :flag:%d", __func__, brightness, atomic_read(&late_resume_flag));
+		DEBUG_MSG("[dyotest] %s, set brightness:%d, :flag:%d", __func__, brightness, atomic_read(&late_resume_flag));
 		lm3530_set_brightness_control(pdata, brightness);
 	}
 
 	if(atomic_read(&late_resume_flag))
 	{
-		printk("[dyotest] %s, set brightness:%d, :flag:%d", __func__, brightness, atomic_read(&late_resume_flag));
+		DEBUG_MSG("[dyotest] %s, set brightness:%d, :flag:%d", __func__, brightness, atomic_read(&late_resume_flag));
 		lm3530_set_brightness_control(pdata, brightness);
 	}
 
@@ -398,7 +398,7 @@ static ssize_t  reg_read_show(struct device* dev,
 
 	reg_val = lm3530_read_byte(&pdata->private, reg_adr);
 
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
+	DEBUG_MSG("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
 
 	return  snprintf(buf, PAGE_SIZE, "reg_adr: %x, reg_val: %x\n", reg_adr, reg_val);
 }
@@ -413,7 +413,7 @@ static ssize_t  reg_read_store(struct device* dev,
 
 	reg_val = lm3530_read_byte(&pdata->private, reg_adr);
 
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
+	DEBUG_MSG("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
 
 	return count;
 }
@@ -428,7 +428,7 @@ static ssize_t  reg_write_store(struct device* dev,
 
 	lm3530_write_byte(&pdata->private, reg_adr, reg_val);
 
-	printk("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
+	DEBUG_MSG("%s, reg_adr=%x, reg_val=%x", __func__, reg_adr, reg_val);
 
 	return count;
 }
@@ -499,7 +499,7 @@ static int __devinit lm3530bl_probe(struct i2c_client* client,
 	{
 		INIT_DELAYED_WORK_DEFERRABLE(&thermal_wk,tab_work_func);
 		queue_delayed_work(thermal_wq,&thermal_wk, 240*HZ);
-		printk("[TAB] init TAB work queue! first check time is 240sec after boot\n");
+		DEBUG_MSG("[TAB] init TAB work queue! first check time is 240sec after boot\n");
 	}
 #endif
 

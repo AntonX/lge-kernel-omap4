@@ -1,6 +1,14 @@
 #include <linux/lge/lm3530.h>
 #include <linux/power_supply.h>
 
+#define LM3530_DEBUG 0
+ #if LM3530_DEBUG
+ #define DEBUG_MSG(args...)  printk(args)
+ #else
+ #define DEBUG_MSG(args...)
+ #endif
+
+
 #if defined(CONFIG_MAX8971_CHARGER)&&  defined(CONFIG_MACH_LGE_P2_DCM)
 
 static int bl_on_off=1;
@@ -99,7 +107,7 @@ int	lm3530_set_brightness_control(struct lm3530_platform_data* pdata, int val)
 
 	if(old_brightness == val)
 	{
-		printk("%s: new val==old_brightness already. just return.\n",__func__);
+		DEBUG_MSG("%s: new val==old_brightness already. just return.\n",__func__);
 		return 0;
 	}
 
@@ -121,20 +129,20 @@ int	lm3530_set_brightness_control(struct lm3530_platform_data* pdata, int val)
 	{
 		if(lm3530_get_hwen(&pdata->private, pdata->gpio_hwen))
 		{
-			printk("%s:hwen=1 already. leave it.\n",__func__);
+			DEBUG_MSG("%s:hwen=1 already. leave it.\n",__func__);
 		}
 		else
 		{
 			lm3530_set_hwen(&pdata->private, pdata->gpio_hwen, 1);
-			printk("%s:hwen=0 now. setting it 1.\n",__func__);
+			DEBUG_MSG("%s:hwen=0 now. setting it 1.\n",__func__);
 		}
 		ret = lm3530_write_byte(&pdata->private, LM3530_REG_BRT, val);
-		printk("[dyotest]%s,%d val=0x%x\n",__func__,__LINE__,val);
+		DEBUG_MSG("[dyotest]%s,%d val=0x%x\n",__func__,__LINE__,val);
 	}
 	else
 	{
 		ret = lm3530_write_byte(&pdata->private, LM3530_REG_BRT, val);
-		printk("[dyotest]%s,%d val=0x%x\n",__func__,__LINE__,val);
+		DEBUG_MSG("[dyotest]%s,%d val=0x%x\n",__func__,__LINE__,val);
 
 		lm3530_set_hwen(&pdata->private, pdata->gpio_hwen, 0);
 	}
